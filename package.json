@@ -1,6 +1,6 @@
 {
     "name": "dev.cfaz.lcmsh",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "displayName": "More Suits helper",
     "description": "helper editor to create json for the more suits lethal company mod",
     "unity": "2021.1",
