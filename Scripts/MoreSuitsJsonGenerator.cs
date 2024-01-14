@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -19,8 +20,14 @@ namespace MoreSuitsHelper
 		private string skinName = "Skin";
 		private int price = 60;
 
+		private string[] ignorePropertyList = new[]
+		{
+			"_MainTex",
+			"_BaseColorMap"
+		};
+
 		[MenuItem("Window/More Suits Json exporter")]
-		public static void ShowExample()
+		public static void ShowWindow()
 		{
 			MoreSuitsJsonGeneratorEditorWindow wnd = GetWindow<MoreSuitsJsonGeneratorEditorWindow>();
 			wnd.titleContent = new GUIContent("More Suits Json exporter");
@@ -70,11 +77,14 @@ namespace MoreSuitsHelper
 			Dictionary<string, string> dictionary = new();
 			Dictionary<string, string> diff = new();
 
+			Directory.CreateDirectory($"{path}/Advanced/");
+
 			if (textAsset)
 				diff = JsonConvert.DeserializeObject<Dictionary<string, string>>(textAsset.text);
 
 			// Price
-			dictionary["PRICE"] = price.ToString();
+			if (price > 0)
+				dictionary["PRICE"] = price.ToString();
 
 			// Enabled Shader Keywords
 			foreach (string keyword in material.shaderKeywords)
@@ -99,11 +109,24 @@ namespace MoreSuitsHelper
 				}
 			}
 
+			// Export Main texture
+			if (material.GetTexture("_MainTex") is { } texture)
+			{
+				File.Copy(AssetDatabase.GetAssetPath(texture), $"{path}/{skinName}.png", true);
+				Debug.Log($"Exported {skinName}.png");
+			}
+
 			// Material Parameters
 			for (int i = 0; i < material.shader.GetPropertyCount(); i++)
 			{
 				string propertyName = material.shader.GetPropertyName(i);
-				string value = material.shader.GetPropertyType(material.shader.FindPropertyIndex(propertyName)) switch
+
+				if (ignorePropertyList.Contains(propertyName))
+					continue;
+
+				ShaderPropertyType type =
+					material.shader.GetPropertyType(material.shader.FindPropertyIndex(propertyName));
+				string value = type switch
 				{
 					ShaderPropertyType.Color => material.HasColor(propertyName)
 						? material.GetVector(propertyName).ToString().Replace("(", "").Replace(")", "")
@@ -118,7 +141,7 @@ namespace MoreSuitsHelper
 						? material.GetFloat(propertyName).ToString(CultureInfo.InvariantCulture)
 						: null,
 					ShaderPropertyType.Texture => material.HasTexture(propertyName)
-						? material.GetTexture(propertyName)?.name
+						? GenerateTexture(material.GetTexture(propertyName), propertyName, path)
 						: null,
 					ShaderPropertyType.Int => material.HasInt(propertyName)
 						? material.GetInt(propertyName).ToString()
@@ -136,7 +159,20 @@ namespace MoreSuitsHelper
 				}
 			}
 
-			File.WriteAllText($"{path}/{skinName}.json", JsonConvert.SerializeObject(dictionary, Formatting.Indented));
+			File.WriteAllText($"{path}/Advanced/{skinName}.json",
+				JsonConvert.SerializeObject(dictionary, Formatting.Indented));
+			Debug.Log($"Exported Advanced/{skinName}.json");
+		}
+
+		private string GenerateTexture(Texture texture, string propertyName, string path)
+		{
+			if (!texture)
+				return null;
+
+			string textureName = $"{skinName}{propertyName}.png";
+			File.Copy(AssetDatabase.GetAssetPath(texture.GetInstanceID()), $"{path}/Advanced/{textureName}", true);
+			Debug.Log($"Exported Advanced/{textureName}");
+			return textureName;
 		}
 	}
 }
